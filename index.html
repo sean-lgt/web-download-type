@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web前端下载文件总结</title>
+  <style>
+    * {
+      padding: 0;
+      margin: 0;
+    }
+
+    .app {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    button {
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="app">
+    <!-- 第一种方式 form表单提交 -->
+    <button id="btn1">form表单提交</button>
+    <!-- 第二种方式 a标签的download-->
+    <button id="btn2">a标签download属性下载</button>
+    <!-- 第三种方式 通过location.href 或者 window.open-->
+    <button id="btn3">window.open 方式下载</button>
+    <!-- 第四种方式 通过Blob对象进行下载 -->
+    <button id="btn4">利用Blob对象</button>
+    <!-- 第五种方式 通过base64下载 -->
+    <button id="btn5">利用base64下载</button>
+  </div>
+
+  <script>
+    const BASE_URL = 'http://127.0.0.1:3002/downloadFile/'
+    /**
+     * 第一种方式  form 表单提交 
+     * 为下载按钮添加一个 click 事件，点击时动态生成表单，利用表单提交来实现文件下载
+     * 实际上就是发送一个请求
+     * 传统方式，兼容性好，不会出现URL长度限制问题，但是无法知道下载进度
+     */
+    const btn1 = document.getElementById('btn1');
+    btn1.onclick = function() {
+      downloadByForm(`${BASE_URL}test.txt`, 'test')
+    }
+
+    /**
+     * @description: form表单形式下载文件
+     * @return {*}
+     * @param {*} url 请求的地址
+     * @param {*} fileName 文件名
+     */
+    function downloadByForm(url, fileName) {
+      //创建表单
+      const formEle = document.createElement('form')
+      formEle.action = url
+      formEle.method = 'get'
+      formEle.style.display = 'none'
+      //创建input 用于传参
+      const formItem = document.createElement('input')
+      formItem.value = fileName
+      formItem.name = 'fileName'
+      //插入到页面中
+      formEle.appendChild(formItem)
+      document.body.appendChild(formEle)
+      formEle.submit()
+      document.body.removeChild(formEle)
+    }
+
+    /**
+     * 第二种方式，通过 a 标签的 download属性进行下载
+     * 原先的 a 标签可以访问下载文件的地址，但是对于浏览器支持查看的如 txt、png、jpg 是不提供直接下载的
+     * donwload 属性是 HTML5新增的属性，兼容性相对较好
+     * 
+     */
+    const btn2 = document.getElementById('btn2')
+    btn2.onclick = function() {
+      downloadByATag(`${BASE_URL}test.jpg`, 'test')
+    }
+    /**
+     * @description: 通过 a 标签的download属性下载
+     * @return {*}
+     * @param {*} url 请求地址
+     * @param {*} fileName 文件名
+     */
+    function downloadByATag(url, fileName) {
+      const a = document.createElement('a')
+      a.style.display = 'none'
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    }
+
+
+
+    /**
+     * 第三种方式，通过 location.href 或者 window.open 下载
+     * 简单方便直接
+     * 但会出现 url 编码问题，长度也会有所限制，不能添加 header，无法鉴权，无法知道下载进度
+     * 
+     */
+
+    const btn3 = document.getElementById('btn3')
+    btn3.onclick = function() {
+      downloadByWindow(`${BASE_URL}test.jpg`)
+    }
+    /**
+     * @description: 通过 location.href 或者 window.open 下载
+     * @return {*}
+     * @param {*} url 请求链接
+     */
+    function downloadByWindow(url) {
+      // location.href = url
+      window.open(url, '_self')
+    }
+
+    /**
+     * 第四种方式 利用 Blob 对象
+     * 该方法较之前的下载方式优势在于，除了能利用已知的文件路径进行下载，还能通过发送ajax获取文件流进行下载
+     * 有时候后端不是直接提供一个下载地址，而是需要调用api或者文件流
+     * 利用 Blob 对象可以将文件流转化成 Blob 二进制对象兼容性良好
+     * 可设置header，也就可添加鉴权信息
+     * 下载思路：发送请求获取二进制数据，转化为Blob对象，利用 URL.createObjectUrl 生成 url地址，结合a标签属性download进行下载
+     */
+    const btn4 = document.getElementById('btn4')
+    btn4.onclick = function() {
+      downloadByBlob(`${BASE_URL}test.jpg`, 'test.jpg')
+    }
+    /**
+     * @description: 利用 Blob 对象转化文件流并下载
+     * @return {*}
+     * @param {*} url 下载的地址，请求路径
+     * @param {*} name  文件名（考虑兼容性，最好加上后缀名）
+     */
+    function downloadByBlob(url, name) {
+      const xhr = new XMLHttpRequest()
+      xhr.open('get', url)
+      xhr.responseType = 'blob'
+      xhr.send()
+      xhr.onload = function() {
+        if (this.status === 200 || this.status === 304) {
+          //如果是IE10及以上，不支持download属性，利用 msSaveOrOpenBlob方法，但 IE10 以下也不支持
+          if ('msSaveOrOpenBlob' in navigator) {
+            navigator.msSaveOrOpenBlob(this.response, name)
+            return
+          }
+          // 如果发送请求时不设置xhr.responseType = 'blob'，默认ajax请求会返回DOMString类型的数据，即字符串。
+          // 这时就需要两处注释的代码了，对返回的文本转化为Blob对象，然后创建blob url，此时需要注释掉原本的const url = URL.createObjectURL(target.response)。
+          // const blob = new Blob([this.response],{type:xhr.getResponseHeader('Content-Type')})
+          // const url = URL.createObjectURL(blob)
+          const url = URL.createObjectURL(this.response)
+          const a = document.createElement('a')
+          a.style.display = 'none'
+          a.href = url
+          a.download = name
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+        }
+      }
+    }
+
+
+    /**
+     * 第五种方式 利用 base64 下载文件
+     * 用法与 Blob 大同小异，思路基本一致
+     * 唯一不同的是生成的一个事Blob URL，这里生成的是 Data URL
+     * Data URL 就是 base64编码后的url形式
+     */
+    const btn5 = document.getElementById('btn5')
+    btn5.onclick = function() {
+      downloadByBase64(`${BASE_URL}test.jpg`, 'test.jpg')
+    }
+
+    /**
+     * @description: 利用Base64下载
+     * @return {*}
+     * @param {*} url 请求地址
+     * @param {*} name 文件名称，最好加上后缀名
+     */
+    function downloadByBase64(url, name) {
+      const xhr = new XMLHttpRequest()
+      xhr.open('get', url)
+      xhr.responseType = 'blob'
+      xhr.send()
+      xhr.onload = function() {
+        if (this.status === 200 || this.status === 304) {
+          const fileReader = new FileReader()
+          fileReader.readAsDataURL(this.response)
+          fileReader.onload = function() {
+            const a = document.createElement('a')
+            a.style.display = 'none'
+            a.href = this.result
+            a.download = name
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+          }
+        }
+      }
+    }
+  </script>
+</body>
+
+</html>
